@@ -1,13 +1,13 @@
 package com.myplans.core.repository;
 
 import com.myplans.core.entity.Plano;
+import com.myplans.core.entity.enums.PlanoEstado;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
-
 @Repository
 public interface PlanoRepository extends JpaRepository<Plano, Integer> {
-    Optional<Plano> findByCodigo(String codigo);
-    boolean existsByCodigo(String codigo);
+    Page<Plano> findByStatus(PlanoEstado status, Pageable pageable);
 }

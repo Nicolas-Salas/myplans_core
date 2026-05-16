@@ -3,12 +3,23 @@ package com.myplans.core.service;
 import com.myplans.core.dto.PageResponseDTO;
 import com.myplans.core.dto.PlanoRequestDTO;
 import com.myplans.core.dto.PlanoResponseDTO;
+import com.myplans.core.dto.PlanoUpdateDTO;
 import com.myplans.core.entity.Plano;
+import com.myplans.core.entity.Tag;
 import com.myplans.core.entity.enums.PlanoEstado;
 import com.myplans.core.exception.BusinessException;
+import com.myplans.core.exception.ConflictException;
+import com.myplans.core.exception.NoFieldsToUpdateException;
+import com.myplans.core.exception.ResourceNotFoundException;
 import com.myplans.core.mapper.PlanoMapper;
 import com.myplans.core.repository.PlanoRepository;
+import com.myplans.core.repository.TagRepository;
+import com.myplans.core.security.AuthenticatedUser;
+import com.myplans.core.storage.StorageService;
+import com.myplans.core.util.ExcelExporterComponent;
 import lombok.RequiredArgsConstructor;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -17,50 +28,45 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class PlanoServiceImpl implements PlanoService {
 
+    private static final String STORAGE_FOLDER_PLANOS = "planos";
+
     private final PlanoRepository planoRepository;
+    private final TagRepository tagRepository;
     private final PlanoMapper planoMapper;
-    private final String uploadDir = "uploads/planos";
+    private final StorageService storageService;
+    private final ExcelExporterComponent excelExporter;
 
     @Override
     @Transactional
-    public PlanoResponseDTO createPlano(PlanoRequestDTO request) {
-        if (planoRepository.existsByCodigo(request.codigo())) {
-            throw new BusinessException("El código de plano ya existe en el sistema.");
-        }
-        
+    public PlanoResponseDTO createPlano(PlanoRequestDTO request, AuthenticatedUser user) {
         Plano plano = planoMapper.toEntity(request);
+        plano.setStatus(PlanoEstado.ABIERTO);
+        plano.setNroPaginas(0);
         plano = planoRepository.save(plano);
-        
         return planoMapper.toResponse(plano);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PlanoResponseDTO getPlanoById(Integer idPlano) {
-        Plano plano = planoRepository.findById(idPlano)
-                .orElseThrow(() -> new BusinessException("Plano no encontrado con el ID proporcionado."));
-        return planoMapper.toResponse(plano);
+        return planoMapper.toResponse(findPlanoOrFail(idPlano));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponseDTO<PlanoResponseDTO> getAllPlanos(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Plano> planoPage = planoRepository.findAll(pageable);
-        
+    public PageResponseDTO<PlanoResponseDTO> getAllPlanos(PlanoEstado status, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1));
+        Page<Plano> planoPage = (status == null)
+                ? planoRepository.findAll(pageable)
+                : planoRepository.findByStatus(status, pageable);
+
         List<PlanoResponseDTO> content = planoMapper.toResponseList(planoPage.getContent());
-        
         return PageResponseDTO.<PlanoResponseDTO>builder()
                 .content(content)
                 .pageNumber(planoPage.getNumber())
@@ -73,67 +79,101 @@ public class PlanoServiceImpl implements PlanoService {
 
     @Override
     @Transactional
+    public PlanoResponseDTO updatePlano(Integer idPlano, PlanoUpdateDTO request) {
+        if (request == null || request.isEmpty()) {
+            throw new NoFieldsToUpdateException(
+                    "Debes enviar al menos un campo para actualizar: " +
+                    "nombre, formulario, alcance, subsistema, codigoPlano, " +
+                    "rev, observaciones, responsable o fechaFirma");
+        }
+
+        Plano plano = findPlanoOrFail(idPlano);
+        if (plano.getStatus() == PlanoEstado.CERRADO) {
+            throw new ConflictException("No se puede modificar un plano cerrado");
+        }
+
+        planoMapper.updateEntity(request, plano);
+        plano = planoRepository.save(plano);
+        return planoMapper.toResponse(plano);
+    }
+
+    @Override
+    @Transactional
     public PlanoResponseDTO uploadPlanoPdf(Integer idPlano, MultipartFile file) {
-        if (file.isEmpty() || !file.getContentType().equals("application/pdf")) {
-            throw new BusinessException("El archivo debe ser un PDF válido y no estar vacío.");
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("El archivo PDF está vacío");
+        }
+        String name = file.getOriginalFilename();
+        if (!"application/pdf".equals(file.getContentType())
+                && (name == null || !name.toLowerCase().endsWith(".pdf"))) {
+            throw new BusinessException("El archivo debe ser un PDF válido");
         }
 
-        Plano plano = planoRepository.findById(idPlano)
-                .orElseThrow(() -> new BusinessException("Plano no encontrado."));
-
-        if (plano.getEstado() == PlanoEstado.CERRADO) {
-            throw new BusinessException("No se pueden adjuntar documentos a un plano cerrado.");
+        Plano plano = findPlanoOrFail(idPlano);
+        if (plano.getStatus() == PlanoEstado.CERRADO) {
+            throw new ConflictException("No se pueden adjuntar documentos a un plano cerrado");
         }
 
-        try {
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+        if (plano.getUrlS3() != null && !plano.getUrlS3().isBlank()) {
+            storageService.delete(plano.getUrlS3());
+        }
 
-            String fileName = UUID.randomUUID().toString() + ".pdf";
-            Path filePath = uploadPath.resolve(fileName);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+        String key = storageService.upload(file, STORAGE_FOLDER_PLANOS);
+        plano.setUrlS3(key);
 
-            plano.setUrlPdf(filePath.toString());
-            plano = planoRepository.save(plano);
-
-            return planoMapper.toResponse(plano);
-
+        try (PDDocument doc = Loader.loadPDF(file.getBytes())) {
+            plano.setNroPaginas(doc.getNumberOfPages());
         } catch (IOException e) {
-            throw new BusinessException("Error al guardar el archivo PDF localmente.");
+            plano.setNroPaginas(0);
         }
+
+        plano = planoRepository.save(plano);
+        return planoMapper.toResponse(plano);
     }
 
     @Override
     @Transactional
     public PlanoResponseDTO validarPlano(Integer idPlano) {
-        Plano plano = planoRepository.findById(idPlano)
-                .orElseThrow(() -> new BusinessException("Plano no encontrado."));
-
-        if (plano.getEstado() != PlanoEstado.PENDIENTE) {
-            throw new BusinessException("El plano solo puede ser validado si se encuentra en estado PENDIENTE.");
+        Plano plano = findPlanoOrFail(idPlano);
+        if (plano.getStatus() != PlanoEstado.ABIERTO) {
+            throw new ConflictException(
+                    "El plano solo puede ser validado si está en estado ABIERTO. " +
+                    "Estado actual: " + plano.getStatus());
         }
-
-        plano.setEstado(PlanoEstado.VALIDADO);
-        plano = planoRepository.save(plano);
-
-        return planoMapper.toResponse(plano);
+        plano.setStatus(PlanoEstado.VALIDADO);
+        return planoMapper.toResponse(planoRepository.save(plano));
     }
 
     @Override
     @Transactional
     public PlanoResponseDTO cerrarPlano(Integer idPlano) {
-        Plano plano = planoRepository.findById(idPlano)
-                .orElseThrow(() -> new BusinessException("Plano no encontrado."));
-
-        if (plano.getEstado() != PlanoEstado.VALIDADO) {
-            throw new BusinessException("El plano debe estar VALIDADO para poder ser cerrado.");
+        Plano plano = findPlanoOrFail(idPlano);
+        if (plano.getStatus() != PlanoEstado.VALIDADO) {
+            throw new ConflictException(
+                    "El plano debe estar VALIDADO para ser cerrado. " +
+                    "Estado actual: " + plano.getStatus());
         }
+        plano.setStatus(PlanoEstado.CERRADO);
+        return planoMapper.toResponse(planoRepository.save(plano));
+    }
 
-        plano.setEstado(PlanoEstado.CERRADO);
-        plano = planoRepository.save(plano);
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] exportTagsMatrix(Integer idPlano) {
+        Plano plano = findPlanoOrFail(idPlano);
+        if (plano.getStatus() != PlanoEstado.CERRADO) {
+            throw new ConflictException(
+                    "El plano debe estar CERRADO para poder exportar la matriz. " +
+                    "Estado actual: " + plano.getStatus());
+        }
+        List<Tag> tags = tagRepository.findByPlanoIdPlanoOrderByCodigoAsc(idPlano);
+        return excelExporter.exportTagsMatrix(plano, tags);
+    }
 
-        return planoMapper.toResponse(plano);
+    // -------- helpers --------
+    private Plano findPlanoOrFail(Integer idPlano) {
+        return planoRepository.findById(idPlano)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Plano no encontrado con ID: " + idPlano));
     }
 }

@@ -1,5 +1,10 @@
 package com.myplans.core.security;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,40 +34,58 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
-        
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
 
+        final String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
+        final String jwt = authHeader.substring(7);
 
         try {
-            userEmail = jwtUtil.extractUsername(jwt);
+            String userEmail = jwtUtil.extractUsername(jwt);
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
                 if (jwtUtil.isTokenValid(jwt)) {
                     List<String> roles = jwtUtil.extractRoles(jwt);
+                    Integer idUsuario = jwtUtil.extractUserId(jwt);
+
+                    AuthenticatedUser principal = AuthenticatedUser.builder()
+                            .idUsuario(idUsuario)
+                            .email(userEmail)
+                            .roles(roles)
+                            .build();
+
                     List<SimpleGrantedAuthority> authorities = roles.stream()
                             .map(SimpleGrantedAuthority::new)
                             .collect(Collectors.toList());
 
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userEmail,
-                            null,
-                            authorities
-                    );
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(principal, null, authorities);
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
-        } catch (Exception ignored) {
+        } catch (ExpiredJwtException ex) {
+            request.setAttribute("jwt_error_message",
+                    "Tu sesión ha expirado. Por favor inicia sesión nuevamente");
+            logger.warn("JWT expirado: " + ex.getMessage());
+        } catch (SignatureException | MalformedJwtException | UnsupportedJwtException ex) {
+            request.setAttribute("jwt_error_message",
+                    "Token inválido. Por favor inicia sesión nuevamente");
+            logger.warn("JWT inválido: " + ex.getMessage());
+        } catch (JwtException ex) {
+            request.setAttribute("jwt_error_message",
+                    "No se pudo validar tu sesión. Por favor inicia sesión nuevamente");
+            logger.warn("JwtException: " + ex.getMessage());
+        } catch (Exception ex) {
+            request.setAttribute("jwt_error_message",
+                    "No se pudo validar tu sesión. Por favor inicia sesión nuevamente");
+            logger.error("Error inesperado validando JWT: " + ex.getMessage());
         }
-        
+
         filterChain.doFilter(request, response);
     }
 }

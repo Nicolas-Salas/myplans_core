@@ -1,16 +1,14 @@
 package com.myplans.core.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+
 import java.time.LocalDate;
 
-public record PlanoRequestDTO(
+public record PlanoUpdateDTO(
 
-        @NotBlank(message = "El nombre del plano es obligatorio")
         @Size(max = 255)
         String nombre,
 
-        @NotBlank(message = "El campo 'formulario' es obligatorio")
         @Size(max = 100)
         String formulario,
 
@@ -33,4 +31,19 @@ public record PlanoRequestDTO(
 
         LocalDate fechaFirma
 ) {
+    public boolean isEmpty() {
+        return isBlank(nombre)
+                && isBlank(formulario)
+                && isBlank(alcance)
+                && isBlank(subsistema)
+                && isBlank(codigoPlano)
+                && isBlank(rev)
+                && isBlank(observaciones)
+                && isBlank(responsable)
+                && fechaFirma == null;
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
 }

@@ -1,7 +1,7 @@
 package com.myplans.core.entity.enums;
 
 public enum PlanoEstado {
-    PENDIENTE,
+    ABIERTO,
     VALIDADO,
     CERRADO
 }

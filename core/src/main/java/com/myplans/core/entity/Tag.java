@@ -2,27 +2,11 @@ package com.myplans.core.entity;
 
 import com.myplans.core.entity.enums.TagEstado;
 import com.myplans.core.entity.enums.TagTipo;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -31,7 +15,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "TAG", uniqueConstraints = {@UniqueConstraint(columnNames = {"id_plano", "codigo"})})
+@Table(name = "TAG", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_tag_plano_codigo", columnNames = {"id_plano", "codigo"})
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -42,6 +28,7 @@ public class Tag {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_tag")
     private Integer idTag;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -50,41 +37,41 @@ public class Tag {
 
     @NotBlank
     @Size(max = 100)
-    @Column(nullable = false, length = 100)
+    @Column(name = "codigo", nullable = false, length = 100)
     private String codigo;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "descripcion", columnDefinition = "TEXT")
     private String descripcion;
 
     @Size(max = 100)
-    @Column(length = 100)
+    @Column(name = "area", length = 100)
     private String area;
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "estado_actual", nullable = false, length = 20)
     private TagEstado estadoActual = TagEstado.PENDIENTE;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "comentario", columnDefinition = "TEXT")
     private String comentario;
 
     @NotNull
-    @Column(nullable = false)
+    @Column(name = "id_usuario_ingreso", nullable = false)
     private Integer idUsuarioIngreso;
 
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "fecha_ingreso", nullable = false, updatable = false)
     private LocalDate fechaIngreso;
 
-    @Column
+    @Column(name = "id_usuario_actualizacion")
     private Integer idUsuarioActualizacion;
 
     @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "tipo", nullable = false, length = 20)
     private TagTipo tipo;
 
     @LastModifiedDate
-    @Column
+    @Column(name = "ultima_modificacion")
     private LocalDateTime ultimaModificacion;
 }
