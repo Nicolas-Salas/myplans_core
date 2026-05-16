@@ -174,6 +174,3 @@ o, mejor, vía variable de entorno `JWT_SECRET`.
    código no cambia.
 3. **Docker**: el JAR ya es self-contained. Un Dockerfile simple basado
    en `eclipse-temurin:17-jre` lo deja listo.
-4. **Pruebas de SecurityFilterChain en tests**: actualmente probamos
-   con MySQL/H2; podría agregarse Testcontainers para tests con MySQL
-   real si el equipo lo prefiere antes de prod.
