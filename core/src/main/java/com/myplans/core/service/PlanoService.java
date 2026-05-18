@@ -16,5 +16,4 @@ public interface PlanoService {
     PlanoResponseDTO uploadPlanoPdf(Integer idPlano, MultipartFile file);
     PlanoResponseDTO validarPlano(Integer idPlano);
     PlanoResponseDTO cerrarPlano(Integer idPlano);
-    byte[] exportTagsMatrix(Integer idPlano);
 }

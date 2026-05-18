@@ -26,7 +26,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    public static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+
     private final JwtUtil jwtUtil;
+
+    @org.springframework.beans.factory.annotation.Value("${core.internal.token:}")
+    private String internalToken;
 
     @Override
     protected void doFilterInternal(
@@ -34,6 +39,29 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
+
+        String internalHeader = request.getHeader(INTERNAL_TOKEN_HEADER);
+        if (internalHeader != null && !internalHeader.isBlank()
+                && internalToken != null && !internalToken.isBlank()
+                && internalToken.equals(internalHeader)) {
+
+            AuthenticatedUser principal = AuthenticatedUser.builder()
+                    .idUsuario(null)
+                    .email("reports-service@internal")
+                    .roles(List.of("ROLE_REPORTS_SERVICE", "ROLE_ADMIN"))
+                    .build();
+
+            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    principal, null,
+                    List.of(
+                            new SimpleGrantedAuthority("ROLE_REPORTS_SERVICE"),
+                            new SimpleGrantedAuthority("ROLE_ADMIN")));
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         final String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {

@@ -1,5 +1,7 @@
 package com.myplans.core.service;
 
+import com.myplans.core.audit.AuditEvent;
+import com.myplans.core.audit.AuditServiceClient;
 import com.myplans.core.dto.TagEstadoUpdateDTO;
 import com.myplans.core.dto.TagExcelRowDTO;
 import com.myplans.core.dto.TagResponseDTO;
@@ -35,6 +37,7 @@ public class TagServiceImpl implements TagService {
     private final PlanoRepository planoRepository;
     private final ExcelParserComponent excelParser;
     private final TagMapper tagMapper;
+    private final AuditServiceClient auditServiceClient;
 
     @Override
     @Transactional
@@ -171,6 +174,15 @@ public class TagServiceImpl implements TagService {
         tag.setIdUsuarioActualizacion(user.getIdUsuario());
 
         Tag saved = tagRepository.save(tag);
+
+        AuditEvent event = new AuditEvent(
+                saved.getIdTag(),
+                user.getIdUsuario(),
+                anterior == null ? null : anterior.name(),
+                nuevo.name(),
+                request.comentario());
+        auditServiceClient.publish(event);
+
         return tagMapper.toResponse(saved);
     }
 }

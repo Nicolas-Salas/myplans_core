@@ -16,7 +16,6 @@ import com.myplans.core.repository.PlanoRepository;
 import com.myplans.core.repository.TagRepository;
 import com.myplans.core.security.AuthenticatedUser;
 import com.myplans.core.storage.StorageService;
-import com.myplans.core.util.ExcelExporterComponent;
 import lombok.RequiredArgsConstructor;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -40,7 +39,6 @@ public class PlanoServiceImpl implements PlanoService {
     private final TagRepository tagRepository;
     private final PlanoMapper planoMapper;
     private final StorageService storageService;
-    private final ExcelExporterComponent excelExporter;
 
     @Override
     @Transactional
@@ -155,19 +153,6 @@ public class PlanoServiceImpl implements PlanoService {
         }
         plano.setStatus(PlanoEstado.CERRADO);
         return planoMapper.toResponse(planoRepository.save(plano));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public byte[] exportTagsMatrix(Integer idPlano) {
-        Plano plano = findPlanoOrFail(idPlano);
-        if (plano.getStatus() != PlanoEstado.CERRADO) {
-            throw new ConflictException(
-                    "El plano debe estar CERRADO para poder exportar la matriz. " +
-                    "Estado actual: " + plano.getStatus());
-        }
-        List<Tag> tags = tagRepository.findByPlanoIdPlanoOrderByCodigoAsc(idPlano);
-        return excelExporter.exportTagsMatrix(plano, tags);
     }
 
     // -------- helpers --------

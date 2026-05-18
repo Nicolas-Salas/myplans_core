@@ -17,6 +17,10 @@ jwt:
 storage:
   base-dir: ${STORAGE_BASE_DIR:uploads}
 
+core:
+  internal:
+    token: ${CORE_INTERNAL_TOKEN:dev-internal-token-please-change-in-prod}
+
 audit:
   service:
     uri: ${AUDIT_SERVICE_URI:http://localhost:8082}

@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -88,19 +87,5 @@ public class PlanoController {
     @PutMapping("/{id}/cerrar")
     public ResponseEntity<PlanoResponseDTO> cerrarPlano(@PathVariable Integer id) {
         return ResponseEntity.ok(planoService.cerrarPlano(id));
-    }
-
-    @Operation(summary = "Exportar matriz a Excel (CU-18, RF-25)",
-            description = "Solo si el plano está CERRADO. Devuelve un archivo .xlsx.")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
-    @GetMapping("/{id}/export")
-    public ResponseEntity<byte[]> exportPlano(@PathVariable Integer id) {
-        byte[] excel = planoService.exportTagsMatrix(id);
-        String filename = "matriz-plano-" + id + ".xlsx";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.parseMediaType(
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-                .body(excel);
     }
 }
