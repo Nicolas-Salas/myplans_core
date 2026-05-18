@@ -280,15 +280,3 @@ El JWT del Auth debe llevar dos claims: `id_usuario` (Integer) y
 
 Ambos servicios comparten el mismo `jwt.secret` en su `application.yml`
 o, mejor, vía variable de entorno `JWT_SECRET`.
-
-## Próximos pasos sugeridos
-
-1. **Comunicación async con el Audit (RabbitMQ/Kafka)**: actualmente
-   Core → Audit es HTTP síncrono punto-a-punto. Para mayor resiliencia
-   (eventos que sobreviven a caídas del Audit), considerar publicar a
-   un broker. El cambio queda contenido en `AuditServiceClient`.
-2. **S3StorageService**: agregar dependencia
-   `software.amazon.awssdk:s3` y crear la implementación. El resto del
-   código no cambia.
-3. **Docker**: el JAR ya es self-contained. Un Dockerfile simple basado
-   en `eclipse-temurin:17-jre` lo deja listo.
