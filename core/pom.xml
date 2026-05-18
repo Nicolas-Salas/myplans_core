@@ -108,6 +108,11 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -130,9 +135,6 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
-                    <!-- Spring 6+ necesita -parameters para que @PathVariable
-                         y @RequestParam resuelvan el nombre del argumento sin
-                         declararlo manualmente en cada anotación. -->
                     <parameters>true</parameters>
                     <annotationProcessorPaths>
                         <path>

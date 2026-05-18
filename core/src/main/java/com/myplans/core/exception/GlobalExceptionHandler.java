@@ -103,6 +103,15 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    // ---------- Audit Service caído en modo strict ----------
+    @ExceptionHandler(AuditServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleAuditUnavailable(AuditServiceUnavailableException ex) {
+        log.error("Audit Service no disponible en modo strict: {}", ex.getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE,
+                "El servicio de auditoría no está disponible. La operación fue rechazada " +
+                "para garantizar la trazabilidad. Intenta más tarde");
+    }
+
     // ---------- Integridad de datos a nivel BD (último recurso) ----------
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
