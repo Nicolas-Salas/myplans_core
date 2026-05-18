@@ -10,6 +10,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.apache.poi.ss.usermodel.Cell;
+
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -48,9 +50,26 @@ public class ExcelParserComponent {
             List<TagExcelRowDTO> tags = new ArrayList<>();
             DataFormatter formatter = new DataFormatter();
 
-            // Saltar fila de encabezado
-            if (rows.hasNext()) {
-                rows.next();
+            if (!rows.hasNext()) {
+                throw new BusinessException("El archivo Excel está vacío");
+            }
+
+            // Leer encabezados y encontrar columnas por nombre
+            Row headerRow = rows.next();
+            int colElemento = -1;
+            int colTipo = -1;
+            for (Cell cell : headerRow) {
+                String header = formatter.formatCellValue(cell).trim().toUpperCase();
+                if ("ELEMENTO".equals(header)) colElemento = cell.getColumnIndex();
+                else if ("TIPO".equals(header)) colTipo = cell.getColumnIndex();
+            }
+            if (colElemento == -1) {
+                throw new BusinessException(
+                        "No se encontró la columna 'ELEMENTO' en el encabezado del Excel");
+            }
+            if (colTipo == -1) {
+                throw new BusinessException(
+                        "No se encontró la columna 'TIPO' en el encabezado del Excel");
             }
 
             int rowNumber = 1;
@@ -58,25 +77,23 @@ public class ExcelParserComponent {
                 Row currentRow = rows.next();
                 rowNumber++;
 
-                String codigo = formatter.formatCellValue(currentRow.getCell(0)).trim();
-                String tipo = formatter.formatCellValue(currentRow.getCell(1)).trim();
-                String descripcion = formatter.formatCellValue(currentRow.getCell(2)).trim();
-                String area = formatter.formatCellValue(currentRow.getCell(3)).trim();
+                String codigo = formatter.formatCellValue(currentRow.getCell(colElemento)).trim();
+                String tipo = formatter.formatCellValue(currentRow.getCell(colTipo)).trim();
 
-                if (codigo.isEmpty() && tipo.isEmpty() && descripcion.isEmpty() && area.isEmpty()) {
+                if (codigo.isEmpty() && tipo.isEmpty()) {
                     continue;
                 }
 
                 if (codigo.isEmpty()) {
                     throw new BusinessException(
-                            "Fila " + rowNumber + ": el campo 'codigo' es obligatorio");
+                            "Fila " + rowNumber + ": la columna 'ELEMENTO' es obligatoria");
                 }
                 if (tipo.isEmpty()) {
                     throw new BusinessException(
-                            "Fila " + rowNumber + ": el campo 'tipo' es obligatorio");
+                            "Fila " + rowNumber + ": la columna 'TIPO' es obligatoria");
                 }
 
-                tags.add(new TagExcelRowDTO(codigo, tipo, descripcion, area));
+                tags.add(new TagExcelRowDTO(codigo, tipo));
             }
 
             return tags;

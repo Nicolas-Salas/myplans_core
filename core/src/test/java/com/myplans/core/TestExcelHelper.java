@@ -12,16 +12,12 @@ public final class TestExcelHelper {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             org.apache.poi.ss.usermodel.Sheet sheet = wb.createSheet();
             org.apache.poi.ss.usermodel.Row header = sheet.createRow(0);
-            header.createCell(0).setCellValue("codigo");
-            header.createCell(1).setCellValue("tipo");
-            header.createCell(2).setCellValue("descripcion");
-            header.createCell(3).setCellValue("area");
+            header.createCell(0).setCellValue("ELEMENTO");
+            header.createCell(1).setCellValue("TIPO");
 
             org.apache.poi.ss.usermodel.Row data = sheet.createRow(1);
             data.createCell(0).setCellValue(codigo);
             data.createCell(1).setCellValue(tipo);
-            data.createCell(2).setCellValue("Motor X");
-            data.createCell(3).setCellValue("Sala A");
 
             wb.write(bos);
             return bos.toByteArray();

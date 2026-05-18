@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -56,7 +57,7 @@ public class PlanoController {
 
     @Operation(summary = "Editar plano",
             description = "Edición parcial. Cualquier campo opcional; al menos uno requerido.")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AUDITOR')")
     @PutMapping("/{id}")
     public ResponseEntity<PlanoResponseDTO> updatePlano(
             @PathVariable Integer id,
@@ -73,9 +74,19 @@ public class PlanoController {
         return ResponseEntity.ok(planoService.uploadPlanoPdf(id, file));
     }
 
+    @Operation(summary = "Descargar PDF del plano")
+    @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> downloadPlanoPdf(@PathVariable Integer id) {
+        byte[] pdf = planoService.downloadPlanoPdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"plano-" + id + ".pdf\"")
+                .body(pdf);
+    }
+
     @Operation(summary = "Validar plano (CU-16, RF-23)",
             description = "Cambia el estado a VALIDADO. Solo Supervisor.")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('AUDITOR', 'ADMIN')")
     @PutMapping("/{id}/validar")
     public ResponseEntity<PlanoResponseDTO> validarPlano(@PathVariable Integer id) {
         return ResponseEntity.ok(planoService.validarPlano(id));
@@ -83,7 +94,7 @@ public class PlanoController {
 
     @Operation(summary = "Cerrar plano (CU-17, RF-24)",
             description = "Cambia el estado a CERRADO. Requiere que esté VALIDADO. Solo Supervisor.")
-    @PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('AUDITOR', 'ADMIN')")
     @PutMapping("/{id}/cerrar")
     public ResponseEntity<PlanoResponseDTO> cerrarPlano(@PathVariable Integer id) {
         return ResponseEntity.ok(planoService.cerrarPlano(id));

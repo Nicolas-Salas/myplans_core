@@ -58,7 +58,7 @@ public class TagController {
             description = "Reglas: OBSERVADO requiere comentario; revertir " +
                     "desde APROBADO requiere rol Supervisor; un plano CERRADO " +
                     "bloquea cualquier cambio.")
-    @PreAuthorize("hasAnyRole('OPERADOR', 'SUPERVISOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('USER', 'AUDITOR', 'ADMIN')")
     @PatchMapping("/api/v1/tags/{idTag}/estado")
     public ResponseEntity<TagResponseDTO> updateEstado(
             @PathVariable Integer idTag,

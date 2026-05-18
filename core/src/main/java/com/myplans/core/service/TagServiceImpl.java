@@ -93,8 +93,7 @@ public class TagServiceImpl implements TagService {
                     .plano(plano)
                     .codigo(row.codigo())
                     .tipo(tipo)
-                    .descripcion(row.descripcion())
-                    .area(row.area())
+                    .area(plano.getSubsistema())
                     .estadoActual(TagEstado.PENDIENTE)
                     .idUsuarioIngreso(user.getIdUsuario())
                     .build();
@@ -161,7 +160,7 @@ public class TagServiceImpl implements TagService {
         }
 
         if (anterior == TagEstado.APROBADO && nuevo != TagEstado.APROBADO) {
-            if (!user.hasRole("SUPERVISOR") && !user.hasRole("ADMIN")) {
+            if (!user.hasRole("AUDITOR") && !user.hasRole("ADMIN")) {
                 throw new ForbiddenOperationException(
                         "Solo un Supervisor puede revertir un TAG aprobado");
             }
