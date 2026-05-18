@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: myplans-core-service
+  profiles:
+    active: dev
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+server:
+  port: 8081
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+
+storage:
+  base-dir: ${STORAGE_BASE_DIR:uploads}
+
+core:
+  internal:
+    token: ${CORE_INTERNAL_TOKEN:dev-internal-token-please-change-in-prod}
+
+audit:
+  service:
+    uri: ${AUDIT_SERVICE_URI:http://localhost:8082}
+    internal-token: ${AUDIT_INTERNAL_TOKEN:dev-internal-token-please-change-in-prod}
+    timeout-ms: ${AUDIT_TIMEOUT_MS:2000}
+  enforce-strict: ${AUDIT_ENFORCE_STRICT:false}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
