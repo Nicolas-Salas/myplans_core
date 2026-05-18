@@ -6,6 +6,20 @@ funcionales del documento de diseño.
 
 ## Cómo correr
 
+### Requisitos previos
+
+- **Java 17** (Eclipse Temurin recomendado).
+- **Maven 3.8+** (también funciona el wrapper `./mvnw`).
+- **MySQL 8** corriendo en `localhost:3306` (solo para el profile `dev`).
+- Si usas **VS Code**, instala las extensiones:
+  - *Extension Pack for Java* (incluye Maven, Debugger, Test Runner).
+  - *Lombok Annotations Support for VS Code*. Sin esta extensión, VS
+    Code muestra cientos de errores rojos en archivos que usan Lombok
+    (entidades, DTOs, etc.) aunque la app **compile y corra sin
+    problemas**. Ver la sección de troubleshooting más abajo.
+
+### Comandos
+
 ```bash
 cd core
 mvn clean package -DskipTests
@@ -15,6 +29,73 @@ java -jar -Dspring.profiles.active=dev target/core-1.0.0.jar
 Profiles:
 - `dev` (default): MySQL local en `localhost:3306/db_myplans_core`.
 - `h2test`: H2 en memoria, útil para tests e integración rápida.
+
+## Troubleshooting
+
+### "Problems: 56" en VS Code, pero la app SÍ compila y corre
+
+**Causa:** falta la extensión *Lombok Annotations Support* en VS Code.
+Sin Lombok, VS Code no entiende que `@Getter`, `@Setter`, `@Builder`,
+`@RequiredArgsConstructor` generan métodos en tiempo de compilación, y
+marca como error cualquier referencia a esos getters/setters/builders.
+
+Los archivos generados por MapStruct (`PlanoMapperImpl.java`,
+`TagMapperImpl.java` en `target/generated-sources/`) también suelen
+mostrar `9+` problemas porque dependen de los métodos generados por
+Lombok.
+
+**Solución:**
+1. Instalar la extensión *Lombok Annotations Support for VS Code*
+   (publisher: GabrielBB / Microsoft, según versión).
+2. Reiniciar VS Code: `Ctrl+Shift+P` → "Java: Clean Java Language
+   Server Workspace" → confirmar reinicio.
+3. Después del reinicio, los "Problems 56" deberían bajar a 0.
+
+**Verificación de que la app SÍ funciona pese a los problemas del IDE:**
+
+```bash
+cd core
+mvn clean package -DskipTests
+```
+
+Si el build dice `BUILD SUCCESS`, el código es correcto. Los errores
+del IDE son únicamente cosméticos y no afectan la ejecución.
+
+### Otros equipos pueden ver problemas distintos según OS
+
+- **Windows + JDK distinto al 17**: si tu `JAVA_HOME` apunta a otra
+  versión, el build falla con errores raros. Verifica con `java -version`.
+  Si tienes varias versiones, configura `JAVA_HOME` al JDK 17 antes
+  de ejecutar Maven.
+- **macOS con M1/M2**: usar un JDK ARM-nativo (Temurin para
+  `aarch64`). El JDK x86 funciona via Rosetta pero más lento.
+- **Linux**: normalmente "just works" si el JDK 17 está en PATH.
+
+### Errores de CORS en el frontend
+
+Si el frontend ve este error en la consola:
+
+```
+The 'Access-Control-Allow-Origin' header contains multiple values
+'http://localhost:5173, http://localhost:5173', but only one is allowed.
+```
+
+**Causa:** alguno de los microservicios downstream estaba agregando
+su propio header CORS, sumándose al que ya agrega el gateway. El
+navegador rechaza headers CORS duplicados, aunque traigan el mismo
+valor.
+
+**Solución (ya aplicada en este repo):** el Core, el Audit y el Auth
+tienen CORS **deshabilitado** en sus `SecurityConfig` (`.cors(disable)`).
+CORS es responsabilidad del **API Gateway** únicamente — él es el
+punto de entrada del frontend, los demás servicios viven en la red
+interna y nunca son llamados directamente por un navegador en
+producción.
+
+Si en un dev environment alguien necesita llamar al Core directo desde
+un navegador (por ejemplo, para probar el Swagger desde otro origen),
+puede levantarlo con un perfil específico que reactive CORS. Por ahora
+no es necesario.
 
 ## Cambios aplicados sobre el código original
 
@@ -63,13 +144,49 @@ al Auth con el parche provisto (`auth-patch/JwtUtil.java`):
 | CU-17 RF-24 | `PUT /api/v1/planos/{id}/cerrar` | SUPERVISOR/ADMIN | Cerrar plano (VALIDADO → CERRADO) |
 | CU-18 RF-25 | `GET /api/v1/planos/{id}/export` | SUPERVISOR/ADMIN | Exportar matriz Excel (solo si CERRADO) |
 
-CU-15 (consultar historial) **no se implementa aquí**: el doc de
-arquitectura asigna el historial al microservicio de Auditoría, que
-es independiente. El Core ya tiene un punto de inyección comentado en
-`TagServiceImpl.updateEstado()` donde publicar el evento de auditoría
-cuando el servicio Audit exista.
+**CU-15 (consultar historial)** se sirve desde el microservicio Audit
+independiente. El Core **sí** participa: en cada cambio de estado
+(`PATCH /api/v1/tags/{idTag}/estado`) publica un evento al Audit
+con `AuditServiceClient`. Ver sección "Integración con el Audit Service"
+más abajo.
 
-### 4. Manejo centralizado de errores
+### 4. Integración con el Audit Service
+
+`TagServiceImpl.updateEstado()` publica un evento al microservicio
+Audit en cada cambio de estado de TAG, cumpliendo RF-19 (registro
+automático), RF-20 (historial completo) y CU-15.
+
+**Comunicación punto-a-punto, NO via gateway:**
+- El gateway sirve al frontend (tráfico humano con JWT de usuario).
+- El Core llama al Audit directo en la red interna usando el header
+  `X-Internal-Token` (secreto compartido entre Core y Audit).
+- En producción, gateway y backends están en la misma red privada;
+  el Audit no está expuesto al internet.
+
+**Política configurable cuando el Audit no responde** (`audit.enforce-strict`):
+
+| Valor | Comportamiento | Cuándo usar |
+| ----- | --------------- | ----------- |
+| `false` (default) | Loguea WARN y sigue. El cambio del TAG persiste. | Disponibilidad operativa: los operadores en terreno no quedan bloqueados si Audit se cae. |
+| `true` | Lanza `AuditServiceUnavailableException`, transacción del Core hace **rollback**, endpoint responde 503. | Integridad forense: ningún cambio se persiste sin su registro de auditoría. |
+
+Se cambia con variable de entorno `AUDIT_ENFORCE_STRICT=true`. Sin
+reiniciar todo el cluster: solo el Core.
+
+**Configuración relevante en `application.yml`:**
+
+```yaml
+audit:
+  service:
+    uri: ${AUDIT_SERVICE_URI:http://localhost:8082}
+    internal-token: ${AUDIT_INTERNAL_TOKEN:dev-internal-token-please-change-in-prod}
+    timeout-ms: ${AUDIT_TIMEOUT_MS:2000}
+  enforce-strict: ${AUDIT_ENFORCE_STRICT:false}
+```
+
+El `internal-token` **debe coincidir exactamente** con el del Audit.
+
+### 5. Manejo centralizado de errores
 
 Mismo patrón que el Auth (sesión anterior): excepciones tipadas y un
 `GlobalExceptionHandler` que devuelve un body uniforme:
@@ -94,7 +211,7 @@ Excepciones del Core:
 - `DataIntegrityViolationException` → 409 (último recurso)
 - Fallback `Exception` → 500 ocultando stack trace al frontend
 
-### 5. Storage abstracto (S3-ready)
+### 6. Storage abstracto (S3-ready)
 
 `StorageService` interface + `LocalStorageService` impl en disco. Para
 producción, basta con crear una `S3StorageService` con el SDK de AWS y
@@ -102,7 +219,7 @@ marcarla con `@Primary` o un profile distinto — el resto del código no
 cambia. Se evitó añadir el SDK pesado de AWS al pom mientras no se
 necesite.
 
-### 6. Tests de integración
+### 7. Tests de integración
 
 `SecurityIntegrationTest` levanta toda la app con H2 y valida 9
 escenarios end-to-end: 401 sin token, 401 token inválido, 401 token
@@ -114,7 +231,7 @@ Adicionalmente se ejecutó un **smoke test manual** con curl y JWTs
 reales que cubre **26 escenarios** y los 12 casos de uso del Core.
 Todos pasaron.
 
-### 7. Otros arreglos
+### 8. Otros arreglos
 
 - **pom.xml:** agregado `<parameters>true</parameters>` al
   maven-compiler-plugin (sin esto, Spring 6 falla en runtime al
@@ -166,9 +283,10 @@ o, mejor, vía variable de entorno `JWT_SECRET`.
 
 ## Próximos pasos sugeridos
 
-1. **Microservicio Audit**: cuando esté listo, completar el punto de
-   inyección comentado en `TagServiceImpl.updateEstado()` para publicar
-   eventos de cambio de estado y satisfacer RF-19/20 y CU-15.
+1. **Comunicación async con el Audit (RabbitMQ/Kafka)**: actualmente
+   Core → Audit es HTTP síncrono punto-a-punto. Para mayor resiliencia
+   (eventos que sobreviven a caídas del Audit), considerar publicar a
+   un broker. El cambio queda contenido en `AuditServiceClient`.
 2. **S3StorageService**: agregar dependencia
    `software.amazon.awssdk:s3` y crear la implementación. El resto del
    código no cambia.
