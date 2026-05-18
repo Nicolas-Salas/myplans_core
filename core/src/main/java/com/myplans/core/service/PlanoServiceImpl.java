@@ -155,6 +155,17 @@ public class PlanoServiceImpl implements PlanoService {
         return planoMapper.toResponse(planoRepository.save(plano));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] downloadPlanoPdf(Integer idPlano) {
+        Plano plano = findPlanoOrFail(idPlano);
+        if (plano.getUrlS3() == null || plano.getUrlS3().isBlank()) {
+            throw new ResourceNotFoundException(
+                    "El plano con ID " + idPlano + " no tiene un PDF adjunto");
+        }
+        return storageService.download(plano.getUrlS3());
+    }
+
     // -------- helpers --------
     private Plano findPlanoOrFail(Integer idPlano) {
         return planoRepository.findById(idPlano)
