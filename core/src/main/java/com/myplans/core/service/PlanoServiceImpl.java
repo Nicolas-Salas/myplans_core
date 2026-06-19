@@ -5,7 +5,6 @@ import com.myplans.core.dto.PlanoRequestDTO;
 import com.myplans.core.dto.PlanoResponseDTO;
 import com.myplans.core.dto.PlanoUpdateDTO;
 import com.myplans.core.entity.Plano;
-import com.myplans.core.entity.Tag;
 import com.myplans.core.entity.enums.PlanoEstado;
 import com.myplans.core.exception.BusinessException;
 import com.myplans.core.exception.ConflictException;
@@ -13,7 +12,7 @@ import com.myplans.core.exception.NoFieldsToUpdateException;
 import com.myplans.core.exception.ResourceNotFoundException;
 import com.myplans.core.mapper.PlanoMapper;
 import com.myplans.core.repository.PlanoRepository;
-import com.myplans.core.repository.TagRepository;
+
 import com.myplans.core.security.AuthenticatedUser;
 import com.myplans.core.storage.StorageService;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +35,6 @@ public class PlanoServiceImpl implements PlanoService {
     private static final String STORAGE_FOLDER_PLANOS = "planos";
 
     private final PlanoRepository planoRepository;
-    private final TagRepository tagRepository;
     private final PlanoMapper planoMapper;
     private final StorageService storageService;
 
