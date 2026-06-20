@@ -1,5 +1,6 @@
 package com.myplans.core;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -166,6 +167,7 @@ class SecurityIntegrationTest {
                 assertTrue(msg.toLowerCase().contains("campo"));
         }
 
+        @Disabled("Endpoint /export no existe en Core — pertenece al Reports microservice")
         @Test
         void givenAdmin_whenExportPlanoNotClosed_thenReturn409() {
                 String token = TestJwtHelper.tokenFor("admin@test.com", 1, List.of("ROLE_ADMIN"));
