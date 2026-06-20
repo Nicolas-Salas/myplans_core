@@ -5,6 +5,7 @@ public record AuditEvent(
         Integer idUsuario,
         String estadoAnterior,
         String estadoNuevo,
-        String observaciones
+        String observaciones,
+        Boolean porIa
 ) {
 }

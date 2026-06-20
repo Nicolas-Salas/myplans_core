@@ -8,6 +8,8 @@ public record TagEstadoUpdateDTO(
         @NotNull(message = "El nuevo estado es obligatorio")
         TagEstado estadoNuevo,
 
-        String comentario
+        String comentario,
+
+        Boolean porIa
 ) {
 }

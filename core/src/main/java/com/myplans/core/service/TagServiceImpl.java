@@ -179,7 +179,8 @@ public class TagServiceImpl implements TagService {
                 user.getIdUsuario(),
                 anterior == null ? null : anterior.name(),
                 nuevo.name(),
-                request.comentario());
+                request.comentario(),
+                Boolean.TRUE.equals(request.porIa()));
         auditServiceClient.publish(event);
 
         return tagMapper.toResponse(saved);
